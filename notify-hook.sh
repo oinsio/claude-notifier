@@ -97,6 +97,10 @@ EOF
 
 # Основная логика
 main() {
+  # Получаем timestamp для логирования
+  local timestamp
+  timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+
   # Загружаем конфигурацию
   load_env
 
@@ -110,7 +114,7 @@ main() {
   INPUT=$(cat)
 
   # Извлекаем имя события
-  EVENT=$(echo "$INPUT" | jq -r '.hookEventName // "unknown"')
+  EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // .hookEventName // .event // "unknown"')
 
   # Получаем уровень детализации
   LEVEL="${NOTIFICATION_LEVEL:-detailed}"
@@ -122,10 +126,10 @@ main() {
       ;;
     "PermissionRequest")
       # Извлекаем данные из JSON
-      TOOL=$(echo "$INPUT" | jq -r '.tool // .tool_name // "unknown"')
-      DESCRIPTION=$(echo "$INPUT" | jq -r '.description // empty')
-      FILE_PATH=$(echo "$INPUT" | jq -r '.file_path // .path // .pathInProject // empty')
-      COMMAND=$(echo "$INPUT" | jq -r '.command // empty')
+      TOOL=$(echo "$INPUT" | jq -r '.tool_name // .tool // .toolName // "unknown"')
+      DESCRIPTION=$(echo "$INPUT" | jq -r '.tool_input.description // .description // .desc // empty')
+      FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .tool_input.pathInProject // .file_path // .path // .pathInProject // .filePath // empty')
+      COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // .command // .cmd // empty')
 
       if [ "$LEVEL" = "minimal" ]; then
         # Минимальное сообщение

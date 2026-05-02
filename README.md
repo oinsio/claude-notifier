@@ -100,14 +100,30 @@ sudo apt install jq
 
 **PermissionRequest:**
 - Название инструмента (Bash, Edit, Write и т.д.)
-- Описание действия
-- Путь к файлу (для файловых операций)
-- Текст команды (для Bash команд, обрезается до 200 символов)
+- Описание действия (из `tool_input.description`)
+- Путь к файлу (для файловых операций, из `tool_input.file_path` или `tool_input.pathInProject`)
+- Текст команды (для Bash команд, из `tool_input.command`, обрезается до 200 символов)
 
 **Stop:**
 - Уведомление о завершении работы Claude Code
 
 Все сообщения форматируются с использованием HTML разметки Telegram для лучшей читаемости.
+
+### Структура JSON от Claude Code
+
+Claude Code передаёт данные в формате:
+```json
+{
+  "hook_event_name": "PermissionRequest",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "...",
+    "description": "..."
+  }
+}
+```
+
+Скрипт автоматически извлекает нужные поля из `tool_input`.
 
 ### Тестирование
 
