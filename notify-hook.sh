@@ -57,10 +57,39 @@ truncate_text() {
   local text="$1"
   local max_length="${2:-200}"
 
-  if [ ${#text} -gt $max_length ]; then
+  if [ ${#text} -gt "$max_length" ]; then
     echo "${text:0:$max_length}..."
   else
     echo "$text"
+  fi
+}
+
+# Преобразование абсолютного пути в относительный
+make_relative_path() {
+  local file_path="$1"
+  local cwd="${2:-$(pwd)}"
+
+  # Если путь пустой или null, возвращаем как есть
+  if [ -z "$file_path" ] || [ "$file_path" = "null" ]; then
+    echo "$file_path"
+    return
+  fi
+
+  # Если путь уже относительный (не начинается с /), возвращаем как есть
+  if [[ ! "$file_path" =~ ^/ ]]; then
+    echo "$file_path"
+    return
+  fi
+
+  # Если путь начинается с CWD, обрезаем его
+  if [[ "$file_path" == "$cwd"* ]]; then
+    local relative="${file_path#"$cwd"}"
+    # Убираем начальный слеш
+    relative="${relative#/}"
+    echo "$relative"
+  else
+    # Если путь вне проекта, возвращаем только имя файла
+    basename "$file_path"
   fi
 }
 
@@ -134,6 +163,14 @@ main() {
       DESCRIPTION=$(echo "$INPUT" | jq -r '.tool_input.description // .description // .desc // empty')
       FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .tool_input.pathInProject // .file_path // .path // .pathInProject // .filePath // empty')
       COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // .command // .cmd // empty')
+
+      # Получаем CWD из JSON (если есть) или используем текущую директорию
+      CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
+
+      # Преобразуем абсолютный путь в относительный
+      if [ -n "$FILE_PATH" ] && [ "$FILE_PATH" != "null" ]; then
+        FILE_PATH=$(make_relative_path "$FILE_PATH" "$CWD")
+      fi
 
       if [ "$LEVEL" = "minimal" ]; then
         # Минимальное сообщение
