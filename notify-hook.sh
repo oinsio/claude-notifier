@@ -9,7 +9,8 @@ LOG_FILE="$SCRIPT_DIR/notify.log"
 
 # Функция логирования ошибок
 log_error() {
-  local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+  local timestamp
+  timestamp=$(date '+%Y-%m-%d %H:%M:%S')
   echo "[$timestamp] $1" >> "$LOG_FILE"
 }
 
@@ -45,7 +46,8 @@ send_telegram_message() {
   local message="$1"
   local url="https://api.telegram.org/bot${BOT_TOKEN}/sendMessage"
 
-  local json_payload=$(cat <<EOF
+  local json_payload
+  json_payload=$(cat <<EOF
 {
   "chat_id": "${CHAT_ID}",
   "text": "${message}",
@@ -54,7 +56,8 @@ send_telegram_message() {
 EOF
 )
 
-  local response=$(curl -s -X POST "$url" \
+  local response
+  response=$(curl -s -X POST "$url" \
     -H "Content-Type: application/json" \
     -H "User-Agent: Bash-Telegram-Notifier/1.0" \
     -d "$json_payload" \
