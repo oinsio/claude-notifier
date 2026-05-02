@@ -14,10 +14,50 @@ SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env"
 LOG_FILE="$SCRIPT_DIR/notify.log"
 
+# Rotate log file if it exceeds size limit
+rotate_log_if_needed() {
+  local log_file="$1"
+  local max_size_mb="${LOG_MAX_SIZE_MB:-1}"
+  local keep_files="${LOG_KEEP_FILES:-2}"
+
+  # Check if log file exists
+  if [ ! -f "$log_file" ]; then
+    return 0
+  fi
+
+  # Calculate size in bytes
+  local max_size_bytes=$((max_size_mb * 1024 * 1024))
+  local current_size
+  current_size=$(stat -f%z "$log_file" 2>/dev/null || echo 0)
+
+  # Check if rotation is needed
+  if [ "$current_size" -lt "$max_size_bytes" ]; then
+    return 0
+  fi
+
+  # Remove oldest log file
+  rm -f "${log_file}.${keep_files}"
+
+  # Shift existing log files
+  for ((i=keep_files-1; i>=1; i--)); do
+    if [ -f "${log_file}.$i" ]; then
+      mv "${log_file}.$i" "${log_file}.$((i+1))"
+    fi
+  done
+
+  # Rotate current log file
+  mv "$log_file" "${log_file}.1"
+  touch "$log_file"
+}
+
 # Error logging function
 log_error() {
   local timestamp
   timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+
+  # Rotate log if needed before writing
+  rotate_log_if_needed "$LOG_FILE"
+
   echo "[$timestamp] $1" >> "$LOG_FILE"
 }
 
@@ -60,6 +100,8 @@ load_env() {
       NOTIFICATION_LEVEL) NOTIFICATION_LEVEL="$value" ;;
       MESSENGER) MESSENGER="$value" ;;
       LANGUAGE) LANGUAGE="$value" ;;
+      LOG_MAX_SIZE_MB) LOG_MAX_SIZE_MB="$value" ;;
+      LOG_KEEP_FILES) LOG_KEEP_FILES="$value" ;;
     esac
   done < "$ENV_FILE"
 
@@ -248,6 +290,9 @@ main() {
 
   # Load locale (default to English if not set)
   load_locale "${LANGUAGE:-en}"
+
+  # Rotate log file if needed
+  rotate_log_if_needed "$LOG_FILE"
 
   # Check if notifications are enabled
   ENABLED="${NOTIFICATIONS_ENABLED:-true}"

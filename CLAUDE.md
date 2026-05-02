@@ -26,6 +26,7 @@ New language: create `locales/XX.sh` (copy `locales/en.sh` structure), translate
 - Script resolves symlinks to find its location — supports symlinked installations
 - Script always exits 0 to never block Claude's workflow
 - Absolute paths converted to relative in messages; paths outside project show filename only
+- Script automatically rotates log files to prevent unlimited growth
 
 ## Extending
 

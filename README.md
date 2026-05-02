@@ -191,3 +191,18 @@ MSG_PERMISSION_TITLE="Permission requise"
 ## Logging
 
 Errors are written to `notify.log` file in the same directory.
+
+### Log Rotation
+
+The script automatically rotates log files to prevent unlimited growth:
+
+- **Default max size**: 1 MB (configurable via `LOG_MAX_SIZE_MB` in `.env`)
+- **Rotated files kept**: 2 (configurable via `LOG_KEEP_FILES`)
+- **Rotation format**: `notify.log` → `notify.log.1` → `notify.log.2`
+- Oldest files are automatically deleted when the limit is reached
+
+Configuration in `.env`:
+```bash
+LOG_MAX_SIZE_MB=1        # Maximum log file size in MB
+LOG_KEEP_FILES=2         # Number of rotated files to keep
+```
