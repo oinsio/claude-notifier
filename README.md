@@ -46,3 +46,53 @@ chmod +x notify.py
 
 - Python 3.6+
 - Только стандартная библиотека (urllib, json, pathlib)
+
+## Интеграция с Claude Code
+
+Проект включает hooks для автоматической отправки уведомлений при событиях Claude Code.
+
+### Настройка hooks
+
+1. **Для текущего проекта** (уже настроено в `.claude/settings.json`):
+   - Hooks срабатывают только в этой директории
+   - Уведомления отправляются при завершении работы Claude и запросах подтверждения
+
+2. **Для глобальной настройки** (все проекты):
+
+   Добавьте в `~/.claude/settings.json`:
+   ```json
+   {
+     "hooks": {
+       "Stop": [{
+         "hooks": [{
+           "type": "command",
+           "command": "/absolute/path/to/notify-hook.sh",
+           "timeout": 10
+         }]
+       }],
+       "PermissionRequest": [{
+         "hooks": [{
+           "type": "command",
+           "command": "/absolute/path/to/notify-hook.sh",
+           "timeout": 10,
+           "async": true
+         }]
+       }]
+     }
+   }
+   ```
+
+### События hooks
+
+- **Stop** - Claude завершает работу (включая `/clear`, `/resume`)
+- **PermissionRequest** - Claude запрашивает подтверждение действия
+
+### Тестирование
+
+```bash
+# Проверка hook напрямую
+echo '{"hookEventName":"Stop"}' | ./notify-hook.sh
+
+# Проверка основного скрипта
+python3 notify.py "Тестовое сообщение"
+```
