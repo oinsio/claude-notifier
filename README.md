@@ -22,11 +22,12 @@ cp .env.example .env
 ```
 TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
 TELEGRAM_CHAT_ID=123456789
+NOTIFICATIONS_ENABLED=true
 ```
 
-5. Сделайте скрипт исполняемым:
+5. Сделайте скрипты исполняемыми:
 ```bash
-chmod +x notify-hook.sh
+chmod +x notify-hook.sh notify-toggle
 ```
 
 ## Требования
@@ -92,6 +93,23 @@ echo '{"hookEventName":"Stop"}' | ./notify-hook.sh
 # Проверка логов
 tail -f notify.log
 ```
+
+## Управление уведомлениями
+
+Используйте скрипт `notify-toggle` для быстрого включения/отключения уведомлений:
+
+```bash
+# Показать текущий статус
+./notify-toggle
+
+# Включить уведомления
+./notify-toggle on
+
+# Отключить уведомления
+./notify-toggle off
+```
+
+Это изменяет значение `NOTIFICATIONS_ENABLED` в `.env` файле без необходимости ручного редактирования.
 
 ## Логирование
 

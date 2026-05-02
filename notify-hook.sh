@@ -30,6 +30,7 @@ load_env() {
     case "$key" in
       TELEGRAM_BOT_TOKEN) BOT_TOKEN="$value" ;;
       TELEGRAM_CHAT_ID) CHAT_ID="$value" ;;
+      NOTIFICATIONS_ENABLED) NOTIFICATIONS_ENABLED="$value" ;;
     esac
   done < "$ENV_FILE"
 
@@ -68,6 +69,12 @@ EOF
 main() {
   # Загружаем конфигурацию
   load_env
+
+  # Проверка, включены ли уведомления
+  ENABLED="${NOTIFICATIONS_ENABLED:-true}"
+  if [ "$ENABLED" != "true" ]; then
+    exit 0
+  fi
 
   # Читаем JSON из stdin
   INPUT=$(cat)
