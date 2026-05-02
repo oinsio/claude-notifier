@@ -119,10 +119,14 @@ main() {
   # Получаем уровень детализации
   LEVEL="${NOTIFICATION_LEVEL:-detailed}"
 
+  # Форматируем текущее время для сообщений
+  local message_time
+  message_time=$(date '+%d.%m.%Y %H:%M:%S')
+
   # Формируем сообщение в зависимости от события
   case "$EVENT" in
     "Stop")
-      MESSAGE="🛑 <b>Claude Code завершил работу</b>"
+      MESSAGE="🛑 <b>Claude Code завершил работу</b> <i>($message_time)</i>"
       ;;
     "PermissionRequest")
       # Извлекаем данные из JSON
@@ -133,10 +137,10 @@ main() {
 
       if [ "$LEVEL" = "minimal" ]; then
         # Минимальное сообщение
-        MESSAGE="⚠️ <b>Требуется разрешение:</b> <code>$(escape_html "$TOOL")</code>"
+        MESSAGE="⚠️ <b>Требуется разрешение:</b> <code>$(escape_html "$TOOL")</code> <i>($message_time)</i>"
       else
         # Детальное сообщение
-        MESSAGE="⚠️ <b>Требуется разрешение</b>\n\n"
+        MESSAGE="⚠️ <b>Требуется разрешение</b> <i>($message_time)</i>\n\n"
         MESSAGE+="<b>Инструмент:</b> <code>$(escape_html "$TOOL")</code>"
 
         if [ -n "$DESCRIPTION" ] && [ "$DESCRIPTION" != "null" ]; then
@@ -155,7 +159,7 @@ main() {
       fi
       ;;
     *)
-      MESSAGE="📢 <b>Claude Code:</b> событие $(escape_html "$EVENT")"
+      MESSAGE="📢 <b>Claude Code:</b> событие $(escape_html "$EVENT") <i>($message_time)</i>"
       ;;
   esac
 
