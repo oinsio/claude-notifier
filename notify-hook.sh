@@ -32,6 +32,7 @@ load_env() {
       TELEGRAM_BOT_TOKEN) BOT_TOKEN="$value" ;;
       TELEGRAM_CHAT_ID) CHAT_ID="$value" ;;
       NOTIFICATIONS_ENABLED) NOTIFICATIONS_ENABLED="$value" ;;
+      NOTIFICATION_LEVEL) NOTIFICATION_LEVEL="$value" ;;
     esac
   done < "$ENV_FILE"
 
@@ -41,16 +42,42 @@ load_env() {
   fi
 }
 
+# Экранирование HTML спецсимволов для Telegram
+escape_html() {
+  local text="$1"
+  text="${text//&/&amp;}"
+  text="${text//</&lt;}"
+  text="${text//>/&gt;}"
+  text="${text//\"/&quot;}"
+  echo "$text"
+}
+
+# Обрезка длинного текста
+truncate_text() {
+  local text="$1"
+  local max_length="${2:-200}"
+
+  if [ ${#text} -gt $max_length ]; then
+    echo "${text:0:$max_length}..."
+  else
+    echo "$text"
+  fi
+}
+
 # Отправка сообщения в Telegram
 send_telegram_message() {
   local message="$1"
   local url="https://api.telegram.org/bot${BOT_TOKEN}/sendMessage"
 
+  # Экранируем кавычки для JSON
+  message="${message//\\/\\\\}"
+  message="${message//\"/\\\"}"
+
   local json_payload
   json_payload=$(cat <<EOF
 {
   "chat_id": "${CHAT_ID}",
-  "text": "${message}",
+  "text": "$(echo -e "$message")",
   "parse_mode": "HTML"
 }
 EOF
@@ -85,17 +112,46 @@ main() {
   # Извлекаем имя события
   EVENT=$(echo "$INPUT" | jq -r '.hookEventName // "unknown"')
 
+  # Получаем уровень детализации
+  LEVEL="${NOTIFICATION_LEVEL:-detailed}"
+
   # Формируем сообщение в зависимости от события
   case "$EVENT" in
     "Stop")
-      MESSAGE="🛑 Claude Code завершил работу"
+      MESSAGE="🛑 <b>Claude Code завершил работу</b>"
       ;;
     "PermissionRequest")
-      TOOL=$(echo "$INPUT" | jq -r '.tool_name // "unknown"')
-      MESSAGE="⚠️ Claude Code запрашивает подтверждение для: $TOOL"
+      # Извлекаем данные из JSON
+      TOOL=$(echo "$INPUT" | jq -r '.tool // .tool_name // "unknown"')
+      DESCRIPTION=$(echo "$INPUT" | jq -r '.description // empty')
+      FILE_PATH=$(echo "$INPUT" | jq -r '.file_path // .path // .pathInProject // empty')
+      COMMAND=$(echo "$INPUT" | jq -r '.command // empty')
+
+      if [ "$LEVEL" = "minimal" ]; then
+        # Минимальное сообщение
+        MESSAGE="⚠️ <b>Требуется разрешение:</b> <code>$(escape_html "$TOOL")</code>"
+      else
+        # Детальное сообщение
+        MESSAGE="⚠️ <b>Требуется разрешение</b>\n\n"
+        MESSAGE+="<b>Инструмент:</b> <code>$(escape_html "$TOOL")</code>"
+
+        if [ -n "$DESCRIPTION" ] && [ "$DESCRIPTION" != "null" ]; then
+          DESCRIPTION=$(truncate_text "$DESCRIPTION" 150)
+          MESSAGE+="\n<b>Действие:</b> $(escape_html "$DESCRIPTION")"
+        fi
+
+        if [ -n "$FILE_PATH" ] && [ "$FILE_PATH" != "null" ]; then
+          MESSAGE+="\n<b>Файл:</b> <code>$(escape_html "$FILE_PATH")</code>"
+        fi
+
+        if [ -n "$COMMAND" ] && [ "$COMMAND" != "null" ]; then
+          COMMAND=$(truncate_text "$COMMAND" 200)
+          MESSAGE+="\n<b>Команда:</b> <code>$(escape_html "$COMMAND")</code>"
+        fi
+      fi
       ;;
     *)
-      MESSAGE="📢 Claude Code: событие $EVENT"
+      MESSAGE="📢 <b>Claude Code:</b> событие $(escape_html "$EVENT")"
       ;;
   esac
 
