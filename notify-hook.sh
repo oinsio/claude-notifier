@@ -40,6 +40,7 @@ load_env() {
       TELEGRAM_CHAT_ID) CHAT_ID="$value" ;;
       NOTIFICATIONS_ENABLED) NOTIFICATIONS_ENABLED="$value" ;;
       NOTIFICATION_LEVEL) NOTIFICATION_LEVEL="$value" ;;
+      MESSENGER) MESSENGER="$value" ;;
     esac
   done < "$ENV_FILE"
 
@@ -91,13 +92,84 @@ make_relative_path() {
   # Если путь начинается с CWD, обрезаем его
   if [[ "$file_path" == "$cwd"* ]]; then
     local relative="${file_path#"$cwd"}"
-    # Убираем начальный слеш
+    # Убираем начальный slash
     relative="${relative#/}"
     echo "$relative"
   else
     # Если путь вне проекта, возвращаем только имя файла
     basename "$file_path"
   fi
+}
+
+# Подготовка данных события
+prepare_event_data() {
+  local input="$1"
+  local event="$2"
+
+  case "$event" in
+    "PermissionRequest")
+      local tool=$(echo "$input" | jq -r '.tool_name // .tool // .toolName // "unknown"')
+      local description=$(echo "$input" | jq -r '.tool_input.description // .description // .desc // empty')
+      local file_path=$(echo "$input" | jq -r '.tool_input.file_path // .tool_input.pathInProject // .file_path // .path // .pathInProject // .filePath // empty')
+      local command=$(echo "$input" | jq -r '.tool_input.command // .command // .cmd // empty')
+      local cwd=$(echo "$input" | jq -r '.cwd // empty')
+
+      # Преобразуем абсолютный путь в относительный
+      if [ -n "$file_path" ] && [ "$file_path" != "null" ]; then
+        file_path=$(make_relative_path "$file_path" "$cwd")
+      fi
+
+      echo "$tool|$description|$file_path|$command"
+      ;;
+    *)
+      echo "$event"
+      ;;
+  esac
+}
+
+# Форматирование сообщения
+format_message() {
+  local event="$1"
+  local data="$2"
+  local level="$3"
+  local timestamp="$4"
+
+  local message=""
+
+  case "$event" in
+    "Stop")
+      message="🛑 <b>Claude Code завершил работу</b> <i>($timestamp)</i>"
+      ;;
+    "PermissionRequest")
+      IFS='|' read -r tool description file_path command <<< "$data"
+
+      if [ "$level" = "minimal" ]; then
+        message="⚠️ <b>Требуется разрешение:</b> <code>$(escape_html "$tool")</code> <i>($timestamp)</i>"
+      else
+        message="⚠️ <b>Требуется разрешение</b> <i>($timestamp)</i>\n\n"
+        message+="<b>Инструмент:</b> <code>$(escape_html "$tool")</code>"
+
+        if [ -n "$description" ] && [ "$description" != "null" ]; then
+          description=$(truncate_text "$description" 150)
+          message+="\n<b>Действие:</b> $(escape_html "$description")"
+        fi
+
+        if [ -n "$file_path" ] && [ "$file_path" != "null" ]; then
+          message+="\n<b>Файл:</b> <code>$(escape_html "$file_path")</code>"
+        fi
+
+        if [ -n "$command" ] && [ "$command" != "null" ]; then
+          command=$(truncate_text "$command" 200)
+          message+="\n<b>Команда:</b> <code>$(escape_html "$command")</code>"
+        fi
+      fi
+      ;;
+    *)
+      message="📢 <b>Claude Code:</b> событие $(escape_html "$event") <i>($timestamp)</i>"
+      ;;
+  esac
+
+  echo "$message"
 }
 
 # Отправка сообщения в Telegram
@@ -131,6 +203,21 @@ EOF
   fi
 }
 
+# Отправка уведомления (общая функция)
+send_notification() {
+  local message="$1"
+  local messenger="${MESSENGER:-telegram}"
+
+  case "$messenger" in
+    telegram)
+      send_telegram_message "$message"
+      ;;
+    *)
+      log_error "Unknown messenger: $messenger"
+      ;;
+  esac
+}
+
 # Основная логика
 main() {
   # Получаем timestamp для логирования
@@ -159,57 +246,17 @@ main() {
   local message_time
   message_time=$(date '+%d.%m.%Y %H:%M:%S')
 
-  # Формируем сообщение в зависимости от события
-  case "$EVENT" in
-    "Stop")
-      MESSAGE="🛑 <b>Claude Code завершил работу</b> <i>($message_time)</i>"
-      ;;
-    "PermissionRequest")
-      # Извлекаем данные из JSON
-      TOOL=$(echo "$INPUT" | jq -r '.tool_name // .tool // .toolName // "unknown"')
-      DESCRIPTION=$(echo "$INPUT" | jq -r '.tool_input.description // .description // .desc // empty')
-      FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .tool_input.pathInProject // .file_path // .path // .pathInProject // .filePath // empty')
-      COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // .command // .cmd // empty')
+  # Подготавливаем данные события
+  local event_data
+  event_data=$(prepare_event_data "$INPUT" "$EVENT")
 
-      # Получаем CWD из JSON (если есть) или используем текущую директорию
-      CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
-
-      # Преобразуем абсолютный путь в относительный
-      if [ -n "$FILE_PATH" ] && [ "$FILE_PATH" != "null" ]; then
-        FILE_PATH=$(make_relative_path "$FILE_PATH" "$CWD")
-      fi
-
-      if [ "$LEVEL" = "minimal" ]; then
-        # Минимальное сообщение
-        MESSAGE="⚠️ <b>Требуется разрешение:</b> <code>$(escape_html "$TOOL")</code> <i>($message_time)</i>"
-      else
-        # Детальное сообщение
-        MESSAGE="⚠️ <b>Требуется разрешение</b> <i>($message_time)</i>\n\n"
-        MESSAGE+="<b>Инструмент:</b> <code>$(escape_html "$TOOL")</code>"
-
-        if [ -n "$DESCRIPTION" ] && [ "$DESCRIPTION" != "null" ]; then
-          DESCRIPTION=$(truncate_text "$DESCRIPTION" 150)
-          MESSAGE+="\n<b>Действие:</b> $(escape_html "$DESCRIPTION")"
-        fi
-
-        if [ -n "$FILE_PATH" ] && [ "$FILE_PATH" != "null" ]; then
-          MESSAGE+="\n<b>Файл:</b> <code>$(escape_html "$FILE_PATH")</code>"
-        fi
-
-        if [ -n "$COMMAND" ] && [ "$COMMAND" != "null" ]; then
-          COMMAND=$(truncate_text "$COMMAND" 200)
-          MESSAGE+="\n<b>Команда:</b> <code>$(escape_html "$COMMAND")</code>"
-        fi
-      fi
-      ;;
-    *)
-      MESSAGE="📢 <b>Claude Code:</b> событие $(escape_html "$EVENT") <i>($message_time)</i>"
-      ;;
-  esac
+  # Форматируем сообщение
+  local message
+  message=$(format_message "$EVENT" "$event_data" "$LEVEL" "$message_time")
 
   # Отправляем уведомление
-  send_telegram_message "$MESSAGE" 2>/dev/null || {
-    log_error "Failed to send message: $MESSAGE"
+  send_notification "$message" 2>/dev/null || {
+    log_error "Failed to send message: $message"
   }
 }
 

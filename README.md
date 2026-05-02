@@ -4,9 +4,9 @@
 
 ## Установка
 
-1. Создайте `.env` файл на основе `.env.example`:
+1. Создайте `.env` файл на основе `.env.sample`:
 ```bash
-cp .env.example .env
+cp .env.sample .env
 ```
 
 2. Получите токен бота:
@@ -24,12 +24,16 @@ TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
 TELEGRAM_CHAT_ID=123456789
 NOTIFICATIONS_ENABLED=true
 NOTIFICATION_LEVEL=detailed
+MESSENGER=telegram
 ```
 
 Параметры:
 - `NOTIFICATION_LEVEL` - уровень детализации уведомлений:
   - `detailed` (по умолчанию) - полная информация (описание, файлы, команды)
   - `minimal` - краткие сообщения (только событие и инструмент)
+- `MESSENGER` - мессенджер для отправки уведомлений:
+  - `telegram` (по умолчанию) - отправка в Telegram
+  - В будущем: `slack`, `discord` и другие
 
 5. Сделайте скрипты исполняемыми:
 ```bash
