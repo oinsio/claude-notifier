@@ -28,7 +28,7 @@ rotate_log_if_needed() {
   # Calculate size in bytes
   local max_size_bytes=$((max_size_mb * 1024 * 1024))
   local current_size
-  current_size=$(stat -f%z "$log_file" 2>/dev/null || echo 0)
+  current_size=$(stat -f%z "$log_file" 2>/dev/null || stat -c%s "$log_file" 2>/dev/null || echo 0)
 
   # Check if rotation is needed
   if [ "$current_size" -lt "$max_size_bytes" ]; then
@@ -238,19 +238,9 @@ send_telegram_message() {
   local message="$1"
   local url="https://api.telegram.org/bot${BOT_TOKEN}/sendMessage"
 
-  # Escape quotes for JSON
-  message="${message//\\/\\\\}"
-  message="${message//\"/\\\"}"
-
   local json_payload
-  json_payload=$(cat <<EOF
-{
-  "chat_id": "${CHAT_ID}",
-  "text": "$(echo -e "$message")",
-  "parse_mode": "HTML"
-}
-EOF
-)
+  json_payload=$(jq -n --arg chat_id "$CHAT_ID" --arg text "$(echo -e "$message")" \
+    '{chat_id: $chat_id, text: $text, parse_mode: "HTML"}')
 
   local response
   response=$(curl -s -X POST "$url" \
