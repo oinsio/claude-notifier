@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Hook для отправки уведомлений в Telegram при событиях Claude Code
+# Hook for sending notifications to Telegram on Claude Code events
 
 set -euo pipefail
 
-# Получаем реальный путь к скрипту (работает с symlink)
+# Get real script path (works with symlinks)
 SCRIPT_PATH="${BASH_SOURCE[0]}"
 while [ -L "$SCRIPT_PATH" ]; do
   SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
@@ -14,25 +14,43 @@ SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env"
 LOG_FILE="$SCRIPT_DIR/notify.log"
 
-# Функция логирования ошибок
+# Error logging function
 log_error() {
   local timestamp
   timestamp=$(date '+%Y-%m-%d %H:%M:%S')
   echo "[$timestamp] $1" >> "$LOG_FILE"
 }
 
-# Загрузка переменных из .env
+# Load locale file
+load_locale() {
+  local lang="${1:-en}"
+  local locale_file="$SCRIPT_DIR/locales/${lang}.sh"
+
+  # Fallback to English if locale file doesn't exist
+  if [ ! -f "$locale_file" ]; then
+    locale_file="$SCRIPT_DIR/locales/en.sh"
+  fi
+
+  if [ -f "$locale_file" ]; then
+    source "$locale_file"
+  else
+    log_error "Error: No locale files found"
+    exit 0
+  fi
+}
+
+# Load variables from .env
 load_env() {
   if [ ! -f "$ENV_FILE" ]; then
-    log_error "Error: .env file not found at $ENV_FILE"
+    log_error "$MSG_ERROR_ENV_NOT_FOUND $ENV_FILE"
     exit 0
   fi
 
   while IFS='=' read -r key value; do
-    # Пропускаем пустые строки и комментарии
+    # Skip empty lines and comments
     [[ -z "$key" || "$key" =~ ^[[:space:]]*# ]] && continue
 
-    # Убираем кавычки и пробелы
+    # Remove quotes and spaces
     value=$(echo "$value" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e 's/^["'\'']//' -e 's/["'\'']$//')
 
     case "$key" in
@@ -41,16 +59,17 @@ load_env() {
       NOTIFICATIONS_ENABLED) NOTIFICATIONS_ENABLED="$value" ;;
       NOTIFICATION_LEVEL) NOTIFICATION_LEVEL="$value" ;;
       MESSENGER) MESSENGER="$value" ;;
+      LANGUAGE) LANGUAGE="$value" ;;
     esac
   done < "$ENV_FILE"
 
   if [ -z "${BOT_TOKEN:-}" ] || [ -z "${CHAT_ID:-}" ]; then
-    log_error "Error: TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set in .env"
+    log_error "$MSG_ERROR_TOKEN_REQUIRED"
     exit 0
   fi
 }
 
-# Экранирование HTML спецсимволов для Telegram
+# HTML escape for Telegram special characters
 escape_html() {
   local text="$1"
   text="${text//&/&amp;}"
@@ -60,7 +79,7 @@ escape_html() {
   echo "$text"
 }
 
-# Обрезка длинного текста
+# Truncate long text
 truncate_text() {
   local text="$1"
   local max_length="${2:-200}"
@@ -72,36 +91,36 @@ truncate_text() {
   fi
 }
 
-# Преобразование абсолютного пути в относительный
+# Convert absolute path to relative
 make_relative_path() {
   local file_path="$1"
   local cwd="${2:-$(pwd)}"
 
-  # Если путь пустой или null, возвращаем как есть
+  # If path is empty or null, return as is
   if [ -z "$file_path" ] || [ "$file_path" = "null" ]; then
     echo "$file_path"
     return
   fi
 
-  # Если путь уже относительный (не начинается с /), возвращаем как есть
+  # If path is already relative (doesn't start with /), return as is
   if [[ ! "$file_path" =~ ^/ ]]; then
     echo "$file_path"
     return
   fi
 
-  # Если путь начинается с CWD, обрезаем его
+  # If path starts with CWD, trim it
   if [[ "$file_path" == "$cwd"* ]]; then
     local relative="${file_path#"$cwd"}"
-    # Убираем начальный slash
+    # Remove leading slash
     relative="${relative#/}"
     echo "$relative"
   else
-    # Если путь вне проекта, возвращаем только имя файла
+    # If path is outside project, return only filename
     basename "$file_path"
   fi
 }
 
-# Подготовка данных события
+# Prepare event data
 prepare_event_data() {
   local input="$1"
   local event="$2"
@@ -114,7 +133,7 @@ prepare_event_data() {
       local command=$(echo "$input" | jq -r '.tool_input.command // .command // .cmd // empty')
       local cwd=$(echo "$input" | jq -r '.cwd // empty')
 
-      # Преобразуем абсолютный путь в относительный
+      # Convert absolute path to relative
       if [ -n "$file_path" ] && [ "$file_path" != "null" ]; then
         file_path=$(make_relative_path "$file_path" "$cwd")
       fi
@@ -127,7 +146,7 @@ prepare_event_data() {
   esac
 }
 
-# Форматирование сообщения
+# Format message
 format_message() {
   local event="$1"
   local data="$2"
@@ -138,46 +157,46 @@ format_message() {
 
   case "$event" in
     "Stop")
-      message="🛑 <b>Claude Code завершил работу</b> <i>($timestamp)</i>"
+      message="🛑 <b>$MSG_STOP_TITLE</b> <i>($timestamp)</i>"
       ;;
     "PermissionRequest")
       IFS='|' read -r tool description file_path command <<< "$data"
 
       if [ "$level" = "minimal" ]; then
-        message="⚠️ <b>Требуется разрешение:</b> <code>$(escape_html "$tool")</code> <i>($timestamp)</i>"
+        message="⚠️ <b>$MSG_PERMISSION_MINIMAL:</b> <code>$(escape_html "$tool")</code> <i>($timestamp)</i>"
       else
-        message="⚠️ <b>Требуется разрешение</b> <i>($timestamp)</i>\n\n"
-        message+="<b>Инструмент:</b> <code>$(escape_html "$tool")</code>"
+        message="⚠️ <b>$MSG_PERMISSION_TITLE</b> <i>($timestamp)</i>\n\n"
+        message+="<b>$MSG_LABEL_TOOL:</b> <code>$(escape_html "$tool")</code>"
 
         if [ -n "$description" ] && [ "$description" != "null" ]; then
           description=$(truncate_text "$description" 150)
-          message+="\n<b>Действие:</b> $(escape_html "$description")"
+          message+="\n<b>$MSG_LABEL_ACTION:</b> $(escape_html "$description")"
         fi
 
         if [ -n "$file_path" ] && [ "$file_path" != "null" ]; then
-          message+="\n<b>Файл:</b> <code>$(escape_html "$file_path")</code>"
+          message+="\n<b>$MSG_LABEL_FILE:</b> <code>$(escape_html "$file_path")</code>"
         fi
 
         if [ -n "$command" ] && [ "$command" != "null" ]; then
           command=$(truncate_text "$command" 200)
-          message+="\n<b>Команда:</b> <code>$(escape_html "$command")</code>"
+          message+="\n<b>$MSG_LABEL_COMMAND:</b> <code>$(escape_html "$command")</code>"
         fi
       fi
       ;;
     *)
-      message="📢 <b>Claude Code:</b> событие $(escape_html "$event") <i>($timestamp)</i>"
+      message="📢 <b>$MSG_GENERIC_EVENT $(escape_html "$event")</b> <i>($timestamp)</i>"
       ;;
   esac
 
   echo "$message"
 }
 
-# Отправка сообщения в Telegram
+# Send message to Telegram
 send_telegram_message() {
   local message="$1"
   local url="https://api.telegram.org/bot${BOT_TOKEN}/sendMessage"
 
-  # Экранируем кавычки для JSON
+  # Escape quotes for JSON
   message="${message//\\/\\\\}"
   message="${message//\"/\\\"}"
 
@@ -199,11 +218,11 @@ EOF
     --max-time 10)
 
   if ! echo "$response" | grep -q '"ok":true'; then
-    log_error "Telegram API error: $response"
+    log_error "$MSG_ERROR_TELEGRAM_API: $response"
   fi
 }
 
-# Отправка уведомления (общая функция)
+# Send notification (generic function)
 send_notification() {
   local message="$1"
   local messenger="${MESSENGER:-telegram}"
@@ -213,53 +232,56 @@ send_notification() {
       send_telegram_message "$message"
       ;;
     *)
-      log_error "Unknown messenger: $messenger"
+      log_error "$MSG_ERROR_UNKNOWN_MESSENGER: $messenger"
       ;;
   esac
 }
 
-# Основная логика
+# Main logic
 main() {
-  # Получаем timestamp для логирования
+  # Get timestamp for logging
   local timestamp
   timestamp=$(date '+%Y-%m-%d %H:%M:%S')
 
-  # Загружаем конфигурацию
+  # Load configuration
   load_env
 
-  # Проверка, включены ли уведомления
+  # Load locale (default to English if not set)
+  load_locale "${LANGUAGE:-en}"
+
+  # Check if notifications are enabled
   ENABLED="${NOTIFICATIONS_ENABLED:-true}"
   if [ "$ENABLED" != "true" ]; then
     exit 0
   fi
 
-  # Читаем JSON из stdin
+  # Read JSON from stdin
   INPUT=$(cat)
 
-  # Извлекаем имя события
+  # Extract event name
   EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // .hookEventName // .event // "unknown"')
 
-  # Получаем уровень детализации
+  # Get detail level
   LEVEL="${NOTIFICATION_LEVEL:-detailed}"
 
-  # Форматируем текущее время для сообщений
+  # Format current time for messages
   local message_time
   message_time=$(date '+%d.%m.%Y %H:%M:%S')
 
-  # Подготавливаем данные события
+  # Prepare event data
   local event_data
   event_data=$(prepare_event_data "$INPUT" "$EVENT")
 
-  # Форматируем сообщение
+  # Format message
   local message
   message=$(format_message "$EVENT" "$event_data" "$LEVEL" "$message_time")
 
-  # Отправляем уведомление
+  # Send notification
   send_notification "$message" 2>/dev/null || {
-    log_error "Failed to send message: $message"
+    log_error "$MSG_ERROR_SEND_FAILED: $message"
   }
 }
 
-# Запускаем main и всегда возвращаем успех, чтобы не блокировать работу Claude
+# Run main and always return success to not block Claude's work
 main || true
 exit 0

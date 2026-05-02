@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Переключатель уведомлений Claude Code
+# Claude Code notification toggle
 
-# Получаем реальный путь к скрипту (работает с symlink)
+# Get real script path (works with symlinks)
 SCRIPT_PATH="${BASH_SOURCE[0]}"
 while [ -L "$SCRIPT_PATH" ]; do
   SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
@@ -11,13 +11,36 @@ done
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env"
 
-# Проверка существования .env
+# Load locale file
+load_locale() {
+  local lang="${1:-en}"
+  local locale_file="$SCRIPT_DIR/locales/${lang}.sh"
+
+  # Fallback to English if locale file doesn't exist
+  if [ ! -f "$locale_file" ]; then
+    locale_file="$SCRIPT_DIR/locales/en.sh"
+  fi
+
+  if [ -f "$locale_file" ]; then
+    source "$locale_file"
+  fi
+}
+
+# Load language from .env if exists
+if [ -f "$ENV_FILE" ]; then
+  LANGUAGE=$(grep "^LANGUAGE=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d '"' | tr -d "'" | xargs)
+fi
+
+# Load locale (default to English)
+load_locale "${LANGUAGE:-en}"
+
+# Check .env existence
 if [ ! -f "$ENV_FILE" ]; then
-  echo "❌ Файл .env не найден: $ENV_FILE"
+  echo "$MSG_TOGGLE_ENV_NOT_FOUND $ENV_FILE"
   exit 1
 fi
 
-# Получить текущий статус
+# Get current status
 get_status() {
   if grep -q "^NOTIFICATIONS_ENABLED=true" "$ENV_FILE" 2>/dev/null; then
     echo "enabled"
@@ -26,11 +49,11 @@ get_status() {
   fi
 }
 
-# Установить статус
+# Set status
 set_status() {
   local new_value="$1"
 
-  # Если строка существует - заменить, иначе добавить
+  # If line exists - replace, otherwise add
   if grep -q "^NOTIFICATIONS_ENABLED=" "$ENV_FILE"; then
     sed -i.bak "s/^NOTIFICATIONS_ENABLED=.*/NOTIFICATIONS_ENABLED=$new_value/" "$ENV_FILE"
   else
@@ -40,29 +63,29 @@ set_status() {
   rm -f "$ENV_FILE.bak"
 }
 
-# Основная логика
+# Main logic
 case "${1:-}" in
   on)
     set_status "true"
-    echo "✅ Уведомления включены"
+    echo "$MSG_TOGGLE_ENABLED"
     ;;
   off)
     set_status "false"
-    echo "🔕 Уведомления отключены"
+    echo "$MSG_TOGGLE_DISABLED"
     ;;
   "")
     status=$(get_status)
     if [ "$status" = "enabled" ]; then
-      echo "✅ Уведомления: включены"
+      echo "$MSG_TOGGLE_STATUS_ENABLED"
     else
-      echo "🔕 Уведомления: отключены"
+      echo "$MSG_TOGGLE_STATUS_DISABLED"
     fi
     ;;
   *)
-    echo "Использование: notify-toggle [on|off]"
-    echo "  on  - включить уведомления"
-    echo "  off - отключить уведомления"
-    echo "  (без аргументов) - показать текущий статус"
+    echo "$MSG_TOGGLE_USAGE"
+    echo "$MSG_TOGGLE_USAGE_ON"
+    echo "$MSG_TOGGLE_USAGE_OFF"
+    echo "$MSG_TOGGLE_USAGE_STATUS"
     exit 1
     ;;
 esac

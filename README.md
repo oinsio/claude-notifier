@@ -1,52 +1,59 @@
-# Telegram Notifier для Claude Code
+# Telegram Notifier for Claude Code
 
-Минимальный bash-скрипт для отправки уведомлений в Telegram при событиях Claude Code.
+[![en](https://img.shields.io/badge/lang-en-blue.svg)](README.md)
+[![ru](https://img.shields.io/badge/lang-ru-red.svg)](README.ru.md)
 
-## Установка
+Minimal bash script for sending notifications to Telegram on Claude Code events.
 
-1. Создайте `.env` файл на основе `.env.sample`:
+## Installation
+
+1. Create `.env` file based on `.env.sample`:
 ```bash
 cp .env.sample .env
 ```
 
-2. Получите токен бота:
-   - Напишите @BotFather в Telegram
-   - Создайте нового бота командой `/newbot`
-   - Скопируйте токен
+2. Get bot token:
+   - Message @BotFather in Telegram
+   - Create a new bot with `/newbot` command
+   - Copy the token
 
-3. Получите Chat ID:
-   - Напишите @userinfobot в Telegram
-   - Скопируйте ваш ID
+3. Get Chat ID:
+   - Message @userinfobot in Telegram
+   - Copy your ID
 
-4. Заполните `.env`:
+4. Fill in `.env`:
 ```
 TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
 TELEGRAM_CHAT_ID=123456789
 NOTIFICATIONS_ENABLED=true
 NOTIFICATION_LEVEL=detailed
 MESSENGER=telegram
+LANGUAGE=en
 ```
 
-Параметры:
-- `NOTIFICATION_LEVEL` - уровень детализации уведомлений:
-  - `detailed` (по умолчанию) - полная информация (описание, файлы, команды)
-  - `minimal` - краткие сообщения (только событие и инструмент)
-- `MESSENGER` - мессенджер для отправки уведомлений:
-  - `telegram` (по умолчанию) - отправка в Telegram
-  - В будущем: `slack`, `discord` и другие
+Parameters:
+- `NOTIFICATION_LEVEL` - notification detail level:
+  - `detailed` (default) - full information (description, files, commands)
+  - `minimal` - brief messages (event and tool only)
+- `MESSENGER` - messenger for sending notifications:
+  - `telegram` (default) - send to Telegram
+  - Future: `slack`, `discord`, and others
+- `LANGUAGE` - language for notification messages:
+  - `en` (default) - English messages
+  - `ru` - Russian messages (Русские сообщения)
 
-5. Сделайте скрипты исполняемыми:
+5. Make scripts executable:
 ```bash
 chmod +x notify-hook.sh notify-toggle
 ```
 
-## Требования
+## Requirements
 
 - Bash 4.0+
-- `curl` (обычно предустановлен)
-- `jq` (для парсинга JSON)
+- `curl` (usually pre-installed)
+- `jq` (for JSON parsing)
 
-Установка jq:
+Installing jq:
 ```bash
 # macOS
 brew install jq
@@ -55,18 +62,17 @@ brew install jq
 sudo apt install jq
 ```
 
+## Integration with Claude Code
 
-## Интеграция с Claude Code
+### Hook Setup
 
-### Настройка hooks
+1. **For current project** (already configured in `.claude/settings.json`):
+   - Hooks trigger only in this directory
+   - Notifications are sent when Claude finishes work and on permission requests
 
-1. **Для текущего проекта** (уже настроено в `.claude/settings.json`):
-   - Hooks срабатывают только в этой директории
-   - Уведомления отправляются при завершении работы Claude и запросах подтверждения
+2. **For global setup** (all projects):
 
-2. **Для глобальной настройки** (все проекты):
-
-   Добавьте в `~/.claude/settings.json`:
+   Add to `~/.claude/settings.json`:
    ```json
    {
      "hooks": {
@@ -89,33 +95,33 @@ sudo apt install jq
    }
    ```
 
-3. **Применение изменений**:
+3. **Applying changes**:
 
-   После добавления или изменения hooks необходимо **перезапустить Claude Code**, чтобы изменения вступили в силу. Конфигурация загружается только при старте приложения.
+   After adding or modifying hooks, you must **restart Claude Code** for changes to take effect. Configuration is loaded only at application startup.
 
-### События hooks
+### Hook Events
 
-- **Stop** - Claude завершает работу (включая `/clear`, `/resume`)
-- **PermissionRequest** - Claude запрашивает подтверждение действия
+- **Stop** - Claude finishes work (including `/clear`, `/resume`)
+- **PermissionRequest** - Claude requests action confirmation
 
-### Формат уведомлений
+### Notification Format
 
-Уведомления содержат развёрнутую информацию о событиях:
+Notifications contain detailed information about events:
 
 **PermissionRequest:**
-- Название инструмента (Bash, Edit, Write и т.д.)
-- Описание действия (из `tool_input.description`)
-- Путь к файлу (для файловых операций, из `tool_input.file_path` или `tool_input.pathInProject`)
-- Текст команды (для Bash команд, из `tool_input.command`, обрезается до 200 символов)
+- Tool name (Bash, Edit, Write, etc.)
+- Action description (from `tool_input.description`)
+- File path (for file operations, from `tool_input.file_path` or `tool_input.pathInProject`)
+- Command text (for Bash commands, from `tool_input.command`, truncated to 200 characters)
 
 **Stop:**
-- Уведомление о завершении работы Claude Code
+- Notification about Claude Code completion
 
-Все сообщения форматируются с использованием HTML разметки Telegram для лучшей читаемости.
+All messages are formatted using Telegram HTML markup for better readability.
 
-### Структура JSON от Claude Code
+### JSON Structure from Claude Code
 
-Claude Code передаёт данные в формате:
+Claude Code passes data in format:
 ```json
 {
   "hook_event_name": "PermissionRequest",
@@ -127,35 +133,61 @@ Claude Code передаёт данные в формате:
 }
 ```
 
-Скрипт автоматически извлекает нужные поля из `tool_input`.
+The script automatically extracts needed fields from `tool_input`.
 
-### Тестирование
+### Testing
 
 ```bash
-# Проверка hook напрямую
+# Test hook directly
 echo '{"hookEventName":"Stop"}' | ./notify-hook.sh
 
-# Проверка логов
+# Check logs
 tail -f notify.log
 ```
 
-## Управление уведомлениями
+## Notification Management
 
-Используйте скрипт `notify-toggle` для быстрого включения/отключения уведомлений:
+Use the `notify-toggle` script to quickly enable/disable notifications:
 
 ```bash
-# Показать текущий статус
+# Show current status
 ./notify-toggle
 
-# Включить уведомления
+# Enable notifications
 ./notify-toggle on
 
-# Отключить уведомления
+# Disable notifications
 ./notify-toggle off
 ```
 
-Это изменяет значение `NOTIFICATIONS_ENABLED` в `.env` файле без необходимости ручного редактирования.
+This changes the `NOTIFICATIONS_ENABLED` value in `.env` file without manual editing.
 
-## Логирование
+## Localization
 
-Ошибки записываются в файл `notify.log` в той же директории.
+The project supports multiple languages for notification messages. Language is configured via the `LANGUAGE` parameter in `.env` file.
+
+### Available Languages
+
+- `en` - English (default)
+- `ru` - Russian (Русский)
+
+### Adding New Languages
+
+1. Create a new locale file in `locales/` directory (e.g., `locales/fr.sh`)
+2. Copy the structure from `locales/en.sh`
+3. Translate all message strings
+4. Set `LANGUAGE=fr` in `.env` file
+
+Example locale file structure:
+```bash
+#!/usr/bin/env bash
+# French locale for Claude Code notifications
+
+MSG_STOP_TITLE="Claude Code a terminé"
+MSG_PERMISSION_TITLE="Permission requise"
+# ... other messages
+```
+
+## Logging
+
+Errors are written to `notify.log` file in the same directory.
