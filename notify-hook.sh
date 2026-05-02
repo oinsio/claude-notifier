@@ -199,7 +199,7 @@ format_message() {
 
   case "$event" in
     "Stop")
-      message="🛑 <b>$MSG_STOP_TITLE</b> <i>($timestamp)</i>"
+      message="✅ <b>$MSG_STOP_TITLE</b> <i>($timestamp)</i>"
       ;;
     "PermissionRequest")
       IFS='|' read -r tool description file_path command <<< "$data"
