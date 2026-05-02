@@ -331,6 +331,15 @@ main() {
   # Extract event name
   EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // .hookEventName // .event // "unknown"')
 
+  # Skip events from subagents (SubagentStop event or presence of agent_type field)
+  if [ "$EVENT" = "SubagentStop" ]; then
+    exit 0
+  fi
+  local agent_type=$(echo "$INPUT" | jq -r '.agent_type // empty')
+  if [ -n "$agent_type" ]; then
+    exit 0
+  fi
+
   # Check for duplicate events
   SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // "unknown"')
   if is_duplicate_event "$SESSION_ID" "$EVENT"; then

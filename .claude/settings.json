@@ -7,7 +7,7 @@
             "type": "command",
             "command": "./notify-hook.sh",
             "timeout": 10,
-            "statusMessage": "Отправка уведомления..."
+            "statusMessage": "Message sending..."
           }
         ]
       }
