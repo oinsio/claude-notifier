@@ -279,6 +279,41 @@ send_notification() {
   esac
 }
 
+# Check if event is duplicate
+is_duplicate_event() {
+  local session_id="$1"
+  local event="$2"
+  local dedup_file="$SCRIPT_DIR/.event-dedup"
+  local dedup_timeout=5  # секунд
+  local current_time=$(date +%s)
+  local event_key="${session_id}_${event}"
+
+  # Создать файл если не существует
+  touch "$dedup_file"
+
+  # Проверить, было ли это событие недавно
+  if grep -q "^${event_key} " "$dedup_file" 2>/dev/null; then
+    local last_time=$(grep "^${event_key} " "$dedup_file" | cut -d' ' -f2)
+    local time_diff=$((current_time - last_time))
+
+    if [ "$time_diff" -lt "$dedup_timeout" ]; then
+      return 0  # Дубликат
+    fi
+  fi
+
+  # Записать новое событие (удалить старую запись если есть)
+  sed -i.bak "/^${event_key} /d" "$dedup_file" 2>/dev/null || true
+  echo "${event_key} ${current_time}" >> "$dedup_file"
+
+  # Очистить старые записи (старше 1 минуты)
+  local cutoff_time=$((current_time - 60))
+  sed -i.bak "/^.* [0-9]*$/!d" "$dedup_file" 2>/dev/null || true
+  awk -v cutoff="$cutoff_time" '$2 >= cutoff' "$dedup_file" > "$dedup_file.tmp" && mv "$dedup_file.tmp" "$dedup_file"
+  rm -f "$dedup_file.bak"
+
+  return 1  # Не дубликат
+}
+
 # Main logic
 main() {
   # Get timestamp for logging
@@ -305,6 +340,13 @@ main() {
 
   # Extract event name
   EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // .hookEventName // .event // "unknown"')
+
+  # Check for duplicate events
+  SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // "unknown"')
+  if is_duplicate_event "$SESSION_ID" "$EVENT"; then
+    # Duplicate event, skip notification
+    exit 0
+  fi
 
   # Get detail level
   LEVEL="${NOTIFICATION_LEVEL:-detailed}"

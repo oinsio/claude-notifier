@@ -61,4 +61,4 @@ $RECYCLE.BIN/
 # VSCode
 .vscode/
 *.code-workspace
-.history/
+.history/.event-dedup

@@ -206,3 +206,14 @@ Configuration in `.env`:
 LOG_MAX_SIZE_MB=1        # Maximum log file size in MB
 LOG_KEEP_FILES=2         # Number of rotated files to keep
 ```
+
+### Event Deduplication
+
+The script automatically prevents duplicate notifications using a deduplication mechanism:
+
+- **Deduplication window**: 5 seconds
+- **How it works**: Events with the same `session_id` and event type are blocked if they occur within 5 seconds
+- **Storage**: Deduplication data is stored in `.event-dedup` file (automatically managed)
+- **Cleanup**: Old entries (older than 1 minute) are automatically removed
+
+This prevents duplicate notifications when Claude Code triggers the same hook multiple times for a single event.
