@@ -1,6 +1,6 @@
-# Telegram Notifier
+# Telegram Notifier для Claude Code
 
-Минимальный Python-скрипт для отправки уведомлений в Telegram без внешних зависимостей.
+Минимальный bash-скрипт для отправки уведомлений в Telegram при событиях Claude Code.
 
 ## Установка
 
@@ -24,32 +24,28 @@ TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
 TELEGRAM_CHAT_ID=123456789
 ```
 
-## Использование
-
+5. Сделайте скрипт исполняемым:
 ```bash
-# Отправить простое сообщение
-python3 notify.py "Привет из скрипта!"
-
-# Отправить многострочное сообщение
-python3 notify.py "Первая строка" "Вторая строка"
-
-# Сделать исполняемым (опционально)
-chmod +x notify.py
-./notify.py "Тестовое сообщение"
+chmod +x notify-hook.sh
 ```
-
-## Логирование
-
-Ошибки записываются в файл `notify.log` в той же директории.
 
 ## Требования
 
-- Python 3.6+
-- Только стандартная библиотека (urllib, json, pathlib)
+- Bash 4.0+
+- `curl` (обычно предустановлен)
+- `jq` (для парсинга JSON)
+
+Установка jq:
+```bash
+# macOS
+brew install jq
+
+# Ubuntu/Debian
+sudo apt install jq
+```
+
 
 ## Интеграция с Claude Code
-
-Проект включает hooks для автоматической отправки уведомлений при событиях Claude Code.
 
 ### Настройка hooks
 
@@ -93,6 +89,10 @@ chmod +x notify.py
 # Проверка hook напрямую
 echo '{"hookEventName":"Stop"}' | ./notify-hook.sh
 
-# Проверка основного скрипта
-python3 notify.py "Тестовое сообщение"
+# Проверка логов
+tail -f notify.log
 ```
+
+## Логирование
+
+Ошибки записываются в файл `notify.log` в той же директории.
